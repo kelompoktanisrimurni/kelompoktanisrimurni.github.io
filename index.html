@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Sawah Guard - Sistem Pengusir Hama Burung</title>
+
+  <!-- Google Font: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <!-- Custom Styles -->
+  <link rel="stylesheet" href="styles.css" />
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              800: '#065f46',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-[#f4f7f6] text-slate-800 antialiased min-h-screen flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
+
+  <!-- Main Container -->
+  <main class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Header -->
+    <header class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex items-center gap-4">
+      <div class="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-700 to-emerald-500 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
+        <i class="fa-solid fa-seedling text-2xl"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2.5 flex-wrap">
+          <h1 class="text-2xl font-bold tracking-tight text-slate-900">Smart Sawah Guard</h1>
+          <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300">v2.4 IoT</span>
+        </div>
+        <p class="text-xs sm:text-sm text-slate-500 font-medium mt-0.5">Sistem Pengusir Hama Burung Otomatis Berbasis Internet Of Things</p>
+      </div>
+    </header>
+
+    <!-- Top 3 Metrics Cards -->
+    <section class="grid grid-cols-1 md:grid-cols-3 gap-5">
+
+      <!-- Card 1: Kontrol Sirine -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between relative overflow-hidden">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2 text-slate-700 font-semibold text-sm">
+            <i class="fa-solid fa-sliders text-emerald-600"></i>
+            <span>Kontrol Sirine Sawah</span>
+          </div>
+          <span class="px-2 py-0.5 text-[11px] font-medium bg-slate-100 text-slate-500 rounded-md border border-slate-200">Manual</span>
+        </div>
+
+        <div class="my-5">
+          <p class="text-[11px] font-bold tracking-wider text-slate-400 uppercase mb-2">KENDALI SIRINE DARURAT:</p>
+          <button id="btn-manual-alarm" class="w-full py-3.5 px-4 bg-red-600 hover:bg-red-700 active:scale-[0.98] text-white rounded-xl font-bold text-sm shadow-md shadow-red-500/25 transition duration-150 flex items-center justify-center gap-2.5">
+            <i class="fa-solid fa-bullhorn text-base"></i>
+            <span id="manual-alarm-text">Bunyikan Alarm Manual (10 Detik)</span>
+          </button>
+        </div>
+
+        <div class="flex items-center gap-2 text-xs text-slate-600">
+          <span class="relative flex h-2.5 w-2.5">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+          </span>
+          <span class="font-medium" id="system-logic-text">Logika: Sistem dalam keadaan siaga.</span>
+        </div>
+      </div>
+
+      <!-- Card 2: Status Alarm (Buzzer) -->
+      <div id="card-status-alarm" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between transition-all duration-300">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold tracking-wider text-slate-500 uppercase">STATUS ALARM (BUZZER)</span>
+          <div id="alarm-icon-container" class="w-9 h-9 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center transition-colors">
+            <i id="alarm-icon" class="fa-solid fa-bell-slash text-base"></i>
+          </div>
+        </div>
+
+        <div class="my-3">
+          <div id="alarm-status-badge" class="text-3xl font-extrabold text-slate-800 tracking-tight">MATI</div>
+          <p id="alarm-status-subtext" class="text-xs text-slate-500 font-medium mt-1">Tidak ada alarm aktif</p>
+        </div>
+
+        <!-- Progress bar hitung mundur alarm manual -->
+        <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+          <div id="alarm-countdown-bar" class="bg-red-500 h-1.5 rounded-full transition-all duration-100" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- Card 3: Jadwal Aktif -->
+      <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold tracking-wider text-slate-500 uppercase">JADWAL AKTIF</span>
+          <div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center">
+            <i class="fa-regular fa-clock text-base"></i>
+          </div>
+        </div>
+
+        <div class="my-3">
+          <div class="flex items-baseline gap-2">
+            <span id="active-schedules-count" class="text-3xl font-extrabold text-slate-800 tracking-tight">0</span>
+            <span class="text-xl font-bold text-slate-700">JADWAL</span>
+          </div>
+          <p id="active-schedules-subtext" class="text-xs text-slate-500 font-medium mt-1">Berjalan Sesuai Waktu</p>
+        </div>
+
+        <div class="text-[11px] text-slate-500 flex items-center gap-1.5 font-medium">
+          <i class="fa-solid fa-circle-check text-emerald-500"></i>
+          <span id="next-schedule-hint">Memuat jadwal...</span>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Middle Row: Jadwal Keamanan Sawah & Kalender -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+      <!-- Jadwal Keamanan Sawah -->
+      <div class="lg:col-span-2 bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-5 flex-wrap gap-3">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <i class="fa-regular fa-calendar-check"></i>
+              </div>
+              <h2 class="text-base font-bold text-slate-800">Jadwal Keamanan Sawah</h2>
+            </div>
+
+            <button id="btn-add-schedule" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-sm transition flex items-center gap-2">
+              <i class="fa-solid fa-plus text-xs"></i>
+              <span>Tambah Jadwal</span>
+            </button>
+          </div>
+
+          <!-- Schedule Table -->
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+              <thead>
+                <tr class="bg-slate-50 text-slate-500 font-bold border-y border-slate-200/80 uppercase tracking-wider">
+                  <th class="py-3 px-3 w-12">No</th>
+                  <th class="py-3 px-3">Waktu</th>
+                  <th class="py-3 px-3">Durasi</th>
+                  <th class="py-3 px-3 text-center">Status</th>
+                  <th class="py-3 px-3 text-center w-24">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="schedule-table-body" class="divide-y divide-slate-100 font-medium">
+                <!-- Diisi via JavaScript -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="mt-5 p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center gap-2.5 text-xs text-slate-600">
+          <i class="fa-regular fa-clock text-slate-400 text-sm"></i>
+          <span>Jadwal akan menyalakan alarm buzzer secara otomatis sesuai waktu yang telah ditentukan.</span>
+        </div>
+      </div>
+
+      <!-- Kalender -->
+      <div class="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between mb-5">
+            <div class="flex items-center gap-2">
+              <i class="fa-regular fa-calendar text-slate-500"></i>
+              <h2 class="text-base font-bold text-slate-800">Kalender</h2>
+            </div>
+            <div class="flex items-center gap-2">
+              <button id="btn-prev-month" class="w-7 h-7 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center transition">
+                <i class="fa-solid fa-chevron-left text-xs"></i>
+              </button>
+              <span id="calendar-month-year" class="text-xs font-bold text-slate-800 px-1 min-w-[100px] text-center">-</span>
+              <button id="btn-next-month" class="w-7 h-7 rounded-lg hover:bg-slate-100 text-slate-500 flex items-center justify-center transition">
+                <i class="fa-solid fa-chevron-right text-xs"></i>
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-slate-400 mb-2">
+            <span>Min</span>
+            <span>Sen</span>
+            <span>Sel</span>
+            <span>Rab</span>
+            <span>Kam</span>
+            <span>Jum</span>
+            <span>Sab</span>
+          </div>
+
+          <div id="calendar-days-grid" class="grid grid-cols-7 gap-1 text-center text-xs font-medium">
+            <!-- Diisi via JavaScript -->
+          </div>
+        </div>
+
+        <div class="mt-4 pt-3 border-t border-slate-100 text-center text-[11px] text-slate-400">
+          Waktu saat ini: <span id="realtime-clock" class="font-bold text-slate-700">--:--:-- WIB</span>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- Log Aktivitas Terkini -->
+    <section class="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200/80">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+        <div class="flex items-start sm:items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center flex-shrink-0">
+            <i class="fa-solid fa-list-check"></i>
+          </div>
+          <div>
+            <h2 class="text-base font-bold text-slate-900">Log Aktivitas Terkini</h2>
+            <p class="text-xs text-slate-500">Catatan 5 aktivitas alarm dan jadwal terbaru (disimpan di browser ini)</p>
+          </div>
+        </div>
+
+        <button id="btn-reset-log" class="px-3.5 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-xl transition border border-slate-200 self-start sm:self-auto flex items-center gap-1.5">
+          <i class="fa-solid fa-rotate-left text-[11px]"></i>
+          <span>Reset Riwayat Log</span>
+        </button>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-xs">
+          <thead>
+            <tr class="bg-slate-50 text-slate-500 font-bold border-y border-slate-200/80 uppercase tracking-wider">
+              <th class="py-3 px-3">WAKTU</th>
+              <th class="py-3 px-3">KEJADIAN</th>
+              <th class="py-3 px-3">KETERANGAN</th>
+              <th class="py-3 px-3 text-center">STATUS ALARM</th>
+            </tr>
+          </thead>
+          <tbody id="log-table-body" class="divide-y divide-slate-100 font-medium">
+            <!-- Diisi via JavaScript -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-3">
+    <div class="flex items-center gap-2">
+      <i class="fa-solid fa-leaf text-emerald-500"></i>
+      <span>Smart Sawah Guard &copy; <span id="footer-year">2026</span></span>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <span id="connection-pulse" class="relative flex h-2.5 w-2.5">
+        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-300 opacity-75"></span>
+        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-400"></span>
+      </span>
+      <span id="connection-status-text" class="font-semibold text-slate-500">Menghubungkan ke server...</span>
+    </div>
+  </footer>
+
+  <!-- Modal: Tambah Jadwal Baru -->
+  <div id="modal-schedule" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+          <i class="fa-regular fa-clock text-emerald-600"></i>
+          <span>Tambah Jadwal Keamanan</span>
+        </h3>
+        <button id="btn-close-schedule-modal" class="text-slate-400 hover:text-slate-600 text-lg">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="form-add-schedule" class="mt-4 space-y-4">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Jam Mulai</label>
+            <input type="time" id="input-start-time" required class="w-full text-xs font-medium border border-slate-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none" value="06:00" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Jam Selesai</label>
+            <input type="time" id="input-end-time" required class="w-full text-xs font-medium border border-slate-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none" value="08:00" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Keterangan / Label Jadwal</label>
+          <input type="text" id="input-schedule-label" placeholder="Misal: Pagi Hari / Musim Panen" class="w-full text-xs font-medium border border-slate-300 rounded-xl px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none" value="Pagi Hari" />
+        </div>
+
+        <div class="flex items-center gap-2 pt-2">
+          <input type="checkbox" id="input-schedule-active" checked class="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500" />
+          <label for="input-schedule-active" class="text-xs font-medium text-slate-700">Langsung aktifkan jadwal ini</label>
+        </div>
+
+        <div class="flex justify-end gap-2 pt-3 border-t border-slate-100">
+          <button type="button" id="btn-cancel-schedule" class="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-xl transition">Batal</button>
+          <button type="submit" class="px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition">Simpan Jadwal</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
