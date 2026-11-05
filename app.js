@@ -13,6 +13,7 @@
 // 1. KONFIGURASI & STATE
 // ==========================================
 const FIREBASE_URL = 'https://comproiot-355aa-default-rtdb.asia-southeast1.firebasedatabase.app';
+const FIREBASE_API_KEY = 'AIzaSyDNZb6D7XulmsVOVJJZpXCOnZXjXTKi1Qs'; // aman dipublikasikan: hanya identitas proyek, bukan pengaman
 const MANUAL_ALARM_SECONDS = 10;
 const HEARTBEAT_MS = 15000;
 const MAX_LOGS = 50;
@@ -301,7 +302,7 @@ function renderAlarmUI() {
 }
 
 // Indikator koneksi di footer
-function setConnectionStatus(online) {
+function setConnectionStatus(online, message) {
   const pulse = document.getElementById('connection-pulse');
   const text = document.getElementById('connection-status-text');
   if (!pulse || !text) return;
@@ -315,16 +316,201 @@ function setConnectionStatus(online) {
     <span class="relative inline-flex rounded-full h-2.5 w-2.5 ${dot}"></span>
   `;
   text.className = `font-semibold ${color === 'emerald' ? 'text-emerald-700' : 'text-red-600'}`;
-  text.innerText = online ? 'Terhubung ke server' : 'Tidak terhubung ke server';
+  text.innerText = message || (online ? 'Terhubung ke server' : 'Tidak terhubung ke server');
 }
 
 // ==========================================
 // 4. FIREBASE (REST)
 // ==========================================
-async function fbRequest(path, options) {
+// --- Autentikasi (Firebase Auth lewat REST) ---
+const AUTH_STORAGE_KEY = 'ssg_auth';
+const Auth = { idToken: null, refreshToken: null, expiresAt: 0, email: '' };
+let heartbeatTimer = null;
+
+function saveAuth() {
+  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({
+    refreshToken: Auth.refreshToken,
+    email: Auth.email
+  }));
+}
+
+async function authSignIn(email, password) {
+  const res = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, returnSecureToken: true })
+    }
+  );
+  const data = await res.json();
+  if (!res.ok) throw new Error((data && data.error && data.error.message) || 'LOGIN_FAILED');
+
+  Auth.idToken = data.idToken;
+  Auth.refreshToken = data.refreshToken;
+  Auth.email = data.email || email;
+  Auth.expiresAt = Date.now() + (Number(data.expiresIn) - 60) * 1000;
+  saveAuth();
+}
+
+// true = token baru didapat; false = gagal (sesi tidak valid / offline)
+async function authRefresh() {
+  if (!Auth.refreshToken) return false;
   try {
-    const res = await fetch(`${FIREBASE_URL}${path}.json`, options);
-    setConnectionStatus(res.ok);
+    const res = await fetch(`https://securetoken.googleapis.com/v1/token?key=${FIREBASE_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(Auth.refreshToken)}`
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      // Refresh token ditolak (dicabut / akun dihapus): hapus sesi
+      Auth.idToken = null;
+      Auth.refreshToken = null;
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      return false;
+    }
+    Auth.idToken = data.id_token;
+    Auth.refreshToken = data.refresh_token;
+    Auth.expiresAt = Date.now() + (Number(data.expires_in) - 60) * 1000;
+    saveAuth();
+    return true;
+  } catch (err) {
+    console.error('Gagal memperbarui token (mungkin offline):', err);
+    return false;
+  }
+}
+
+async function getIdToken() {
+  if (!Auth.refreshToken) return null;
+  if (!Auth.idToken || Date.now() >= Auth.expiresAt) {
+    const ok = await authRefresh();
+    if (!ok) return null;
+  }
+  return Auth.idToken;
+}
+
+function authSignOut() {
+  Auth.idToken = null;
+  Auth.refreshToken = null;
+  Auth.expiresAt = 0;
+  Auth.email = '';
+  localStorage.removeItem(AUTH_STORAGE_KEY);
+  clearInterval(heartbeatTimer);
+  showLogin();
+}
+
+function showLogin(message) {
+  const screen = document.getElementById('login-screen');
+  const errorEl = document.getElementById('login-error');
+  const pwd = document.getElementById('login-password');
+  if (screen) screen.classList.remove('hidden');
+  if (pwd) pwd.value = '';
+  if (errorEl) {
+    if (message) {
+      errorEl.innerText = message;
+      errorEl.classList.remove('hidden');
+    } else {
+      errorEl.classList.add('hidden');
+    }
+  }
+}
+
+function hideLogin() {
+  const screen = document.getElementById('login-screen');
+  if (screen) screen.classList.add('hidden');
+}
+
+function loginErrorMessage(code) {
+  if (/INVALID_LOGIN_CREDENTIALS|INVALID_PASSWORD|EMAIL_NOT_FOUND|INVALID_EMAIL/.test(code)) {
+    return 'Email atau password salah.';
+  }
+  if (/TOO_MANY_ATTEMPTS/.test(code)) return 'Terlalu banyak percobaan. Coba lagi beberapa menit lagi.';
+  if (/USER_DISABLED/.test(code)) return 'Akun ini dinonaktifkan.';
+  if (/OPERATION_NOT_ALLOWED/.test(code)) return 'Login Email/Password belum diaktifkan di Firebase.';
+  return 'Gagal masuk. Periksa koneksi internet lalu coba lagi.';
+}
+
+function setupLogin() {
+  const form = document.getElementById('form-login');
+  const btn = document.getElementById('btn-login');
+  const btnLogout = document.getElementById('btn-logout');
+
+  if (form) {
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+
+      btn.disabled = true;
+      btn.innerText = 'Memproses...';
+      try {
+        await authSignIn(email, password);
+        startDashboard();
+      } catch (err) {
+        showLogin(loginErrorMessage(String(err.message || err)));
+      } finally {
+        btn.disabled = false;
+        btn.innerText = 'Masuk';
+      }
+    });
+  }
+
+  if (btnLogout) {
+    btnLogout.addEventListener('click', () => {
+      if (confirm('Keluar dari dashboard?')) authSignOut();
+    });
+  }
+}
+
+async function restoreSession() {
+  const saved = safeParse(AUTH_STORAGE_KEY, null);
+  if (saved && saved.refreshToken) {
+    Auth.refreshToken = saved.refreshToken;
+    Auth.email = saved.email || '';
+    const ok = await authRefresh();
+    if (ok) {
+      startDashboard();
+      return;
+    }
+    showLogin(Auth.refreshToken ? 'Tidak bisa memeriksa sesi. Periksa koneksi, lalu masuk lagi.' : 'Sesi berakhir, silakan masuk lagi.');
+    return;
+  }
+  showLogin();
+}
+
+// Dijalankan sekali setelah login berhasil
+function startDashboard() {
+  hideLogin();
+  loadSchedulesFromFirebase();
+  clearStaleAlarm();
+  clearInterval(heartbeatTimer);
+  heartbeatTimer = setInterval(() => fbRequest('/status'), HEARTBEAT_MS); // cek koneksi berkala
+}
+
+// --- Request ke Realtime Database ---
+// Baca (GET) publik. Tulis (PUT/PATCH) wajib membawa token login.
+async function fbRequest(path, options = {}) {
+  const isWrite = !!options.method && options.method !== 'GET';
+  let query = '';
+
+  if (isWrite) {
+    const token = await getIdToken();
+    if (!token) {
+      showLogin('Sesi berakhir, silakan masuk lagi.');
+      return null;
+    }
+    query = `?auth=${encodeURIComponent(token)}`;
+  }
+
+  try {
+    const res = await fetch(`${FIREBASE_URL}${path}.json${query}`, options);
+    if (isWrite && (res.status === 401 || res.status === 403)) {
+      console.error(`Firebase menolak tulis ke ${path} (status ${res.status}). Cek rules dan UID akun.`);
+      setConnectionStatus(false, 'Akses ditolak server (cek rules / akun)');
+    } else {
+      setConnectionStatus(res.ok);
+    }
     return res;
   } catch (err) {
     console.error(`Firebase ${path} gagal:`, err);
@@ -550,10 +736,9 @@ document.addEventListener('DOMContentLoaded', () => {
   setupScheduleModal();
   startSchedulerEngine();
 
-  // Sinkron dengan server
-  loadSchedulesFromFirebase();
-  clearStaleAlarm();
-  setInterval(() => fbRequest('/status'), HEARTBEAT_MS); // cek koneksi berkala
+  // Login dulu; sinkron dengan server dimulai di startDashboard()
+  setupLogin();
+  restoreSession();
 
   // Tombol alarm manual
   const btnManual = document.getElementById('btn-manual-alarm');
