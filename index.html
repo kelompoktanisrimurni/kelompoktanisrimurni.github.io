@@ -79,6 +79,8 @@
 
         <div class="my-5">
           <p class="text-[11px] font-bold tracking-wider text-slate-400 uppercase mb-2">KENDALI SIRINE DARURAT:</p>
+          <label for="manual-track" class="block text-[11px] font-semibold text-slate-500 mb-1">Pilih suara:</label>
+          <select id="manual-track" class="w-full mb-3 text-sm font-medium border border-slate-300 rounded-xl px-3 py-2.5 bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-none"></select>
           <button id="btn-manual-alarm" class="w-full py-3.5 px-4 bg-red-600 hover:bg-red-700 active:scale-[0.98] text-white rounded-xl font-bold text-sm shadow-md shadow-red-500/25 transition duration-150 flex items-center justify-center gap-2.5">
             <i class="fa-solid fa-bullhorn text-base"></i>
             <span id="manual-alarm-text">Bunyikan Alarm Manual (10 Detik)</span>
@@ -94,10 +96,10 @@
         </div>
       </div>
 
-      <!-- Card 2: Status Alarm (Buzzer) -->
+      <!-- Card 2: Status Alarm  -->
       <div id="card-status-alarm" class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200/80 flex flex-col justify-between transition-all duration-300">
         <div class="flex items-center justify-between">
-          <span class="text-xs font-bold tracking-wider text-slate-500 uppercase">STATUS ALARM (BUZZER)</span>
+          <span class="text-xs font-bold tracking-wider text-slate-500 uppercase">STATUS ALARM </span>
           <div id="alarm-icon-container" class="w-9 h-9 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center transition-colors">
             <i id="alarm-icon" class="fa-solid fa-bell-slash text-base"></i>
           </div>
@@ -180,7 +182,7 @@
 
         <div class="mt-5 p-3.5 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center gap-2.5 text-xs text-slate-600">
           <i class="fa-regular fa-clock text-slate-400 text-sm"></i>
-          <span>Jadwal akan menyalakan alarm buzzer secara otomatis sesuai waktu yang telah ditentukan.</span>
+          <span>Jadwal akan menyalakan alarm secara otomatis sesuai waktu yang telah ditentukan.</span>
         </div>
       </div>
 
