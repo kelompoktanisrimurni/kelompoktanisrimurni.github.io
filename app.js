@@ -15,6 +15,15 @@
 const FIREBASE_URL = 'https://comproiot-355aa-default-rtdb.asia-southeast1.firebasedatabase.app';
 const FIREBASE_API_KEY = 'AIzaSyDNZb6D7XulmsVOVJJZpXCOnZXjXTKi1Qs'; // aman dipublikasikan: hanya identitas proyek, bukan pengaman
 const MANUAL_ALARM_SECONDS = 10;
+
+// Daftar suara di SD card (id = nomor file: 1 = 0001.mp3, dst). Ubah name sesuai isi lagu.
+// Jumlah item harus sama dengan NUM_TRACKS di sawah_guard.ino.
+const TRACKS = [
+  { id: 1, name: 'Lagu 1 (0001.mp3)' },
+  { id: 2, name: 'Lagu 2 (0002.mp3)' },
+  { id: 3, name: 'Lagu 3 (0003.mp3)' }
+];
+const TRACK_RANDOM = 0;
 const HEARTBEAT_MS = 15000;
 const MAX_LOGS = 50;
 
@@ -520,13 +529,14 @@ async function fbRequest(path, options = {}) {
 }
 
 // Alarm manual -> ESP32. alarm_until = batas waktu (epoch detik) supaya tidak nyangkut.
-async function syncAlarmToFirebase(isActive, reason = '', durationSeconds = 0) {
+async function syncAlarmToFirebase(isActive, reason = '', durationSeconds = 0, track = TRACK_RANDOM) {
   const nowSec = Math.floor(Date.now() / 1000);
   return fbRequest('/status', {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       alarm: isActive,
+      track: isActive ? track : TRACK_RANDOM,   // 0 = acak, 1..n = lagu pilihan
       alarm_until: isActive ? nowSec + durationSeconds : 0,
       last_event: reason,
       updated_at: new Date().toISOString()
@@ -587,11 +597,34 @@ async function clearStaleAlarm() {
 // ==========================================
 // 5. ALARM LOGIC
 // ==========================================
-function triggerAlarm(durationSeconds, sourceEvent) {
+function trackLabel(track) {
+  const t = TRACKS.find(x => x.id === track);
+  return t ? t.name : 'Acak';
+}
+
+function setupTrackSelect() {
+  const select = document.getElementById('manual-track');
+  if (!select) return;
+
+  select.innerHTML =
+    `<option value="${TRACK_RANDOM}">Acak (semua lagu)</option>` +
+    TRACKS.map(t => `<option value="${t.id}">${escapeHtml(t.name)}</option>`).join('');
+
+  // Ingat pilihan terakhir di browser ini
+  const saved = Number(safeParse('ssg_track', TRACK_RANDOM));
+  if (saved === TRACK_RANDOM || TRACKS.some(t => t.id === saved)) select.value = String(saved);
+
+  select.addEventListener('change', () => {
+    localStorage.setItem('ssg_track', JSON.stringify(Number(select.value)));
+  });
+}
+
+function triggerAlarm(durationSeconds, sourceEvent, track = TRACK_RANDOM) {
   if (AppState.alarmActive) return;
 
+  const fullSource = `${sourceEvent} - ${trackLabel(track)}`;
   AppState.alarmActive = true;
-  AppState.alarmSource = sourceEvent;
+  AppState.alarmSource = fullSource;
   renderAlarmUI();
 
   // Animasi bar hitung mundur
@@ -605,8 +638,8 @@ function triggerAlarm(durationSeconds, sourceEvent) {
     }, 20);
   }
 
-  addLog(sourceEvent, 'Manual', `AKTIF (${durationSeconds}s)`);
-  syncAlarmToFirebase(true, sourceEvent, durationSeconds);
+  addLog(fullSource, 'Manual', `AKTIF (${durationSeconds}s)`);
+  syncAlarmToFirebase(true, fullSource, durationSeconds, track);
 
   clearTimeout(AppState.alarmTimer);
   AppState.alarmTimer = setTimeout(resetAlarmState, durationSeconds * 1000);
@@ -734,6 +767,7 @@ document.addEventListener('DOMContentLoaded', () => {
   renderLogs();
   renderAlarmUI();
   setupScheduleModal();
+  setupTrackSelect();
   startSchedulerEngine();
 
   // Login dulu; sinkron dengan server dimulai di startDashboard()
@@ -744,7 +778,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnManual = document.getElementById('btn-manual-alarm');
   if (btnManual) {
     btnManual.addEventListener('click', () => {
-      triggerAlarm(MANUAL_ALARM_SECONDS, 'Tombol Sirine Manual');
+      const select = document.getElementById('manual-track');
+      const track = select ? Number(select.value) : TRACK_RANDOM;
+      triggerAlarm(MANUAL_ALARM_SECONDS, 'Tombol Sirine Manual', track);
     });
   }
 
